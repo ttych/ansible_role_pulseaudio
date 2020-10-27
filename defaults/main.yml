@@ -1,2 +1,18 @@
 ---
-# defaults file for ansible_role_pulseaudio
+
+pulseaudio_conf_dir: /etc/pulse
+pulseaudio_client_conf: "{{ pulseaudio_conf_dir }}/client.conf"
+pulseaudio_daemon_conf: "{{ pulseaudio_conf_dir }}/daemon.conf"
+pulseaudio_packages:
+  - pulseaudio
+  - pulseaudio-utils
+
+pulseaudio_server_service: pulseaudio
+pulseaudio_server_client_conf_entries:
+  - { key: autospawn, value: no }
+pulseaudio_server_daemon_conf_entries: []
+
+pulseaudio_user_service:
+pulseaudio_user_client_conf_entries:
+  - { key: autospawn, value: yes }
+pulseaudio_user_daemon_conf_entries: []

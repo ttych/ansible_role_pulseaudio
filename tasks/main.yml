@@ -1,2 +1,18 @@
 ---
-# tasks file for ansible_role_pulseaudio
+
+- block:
+    - include: context.yml
+
+    - include: install_packages.yml
+      vars: {
+        packages: "{{ pulseaudio_packages }}",
+        services: []
+      }
+
+    - include: pulseaudio.yml
+
+  when: want_pulseaudio
+
+- name: "set has_pulseaudio to {{ want_pulseaudio }}"
+  set_fact:
+    has_pulseaudio: "{{ want_pulseaudio }}"

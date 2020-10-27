@@ -1,0 +1,128 @@
+---
+
+- name: guess pulseaudio_mode
+  block:
+    - name: set pulseaudio_mode to server
+      set_fact:
+        pulseaudio_mode: server
+      when: (hosttype|d('')) in ['server']
+
+    - name: set pulseaudio_mode to user
+      set_fact:
+        pulseaudio_mode: user
+      when: (hosttype|d('')) in ['desktop']
+
+  when: pulseaudio_mode is not defined
+
+
+- name: configure pulseaudio
+  block:
+    - name: prepare server settings
+      set_fact:
+        pulseaudio_client_conf_entries: "{{ pulseaudio_server_client_conf_entries }}"
+        pulseaudio_daemon_conf_entries: "{{ pulseaudio_server_daemon_conf_entries }}"
+        pulseaudio_service_to_enable: "{{ pulseaudio_server_service }}"
+        pulseaudio_service_to_disable: "{{ pulseaudio_user_service }}"
+        pulseaudio_service_to_deploy: "{{ pulseaudio_server_service }}"
+      when: pulseaudio_mode == "server"
+
+    - name: prepare user settings
+      set_fact:
+        pulseaudio_client_conf_entries: "{{ pulseaudio_user_client_conf_entries }}"
+        pulseaudio_daemon_conf_entries: "{{ pulseaudio_user_daemon_conf_entries }}"
+        pulseaudio_service_to_enable: "{{ pulseaudio_user_service }}"
+        pulseaudio_service_to_disable: "{{ pulseaudio_server_service }}"
+        pulseaudio_service_to_deploy:
+      when: pulseaudio_mode == "user"
+
+    - name: setup client.conf
+      lineinfile:
+        path: "{{ pulseaudio_client_conf }}"
+        regexp: '^{{ item.key }} ='
+        line: "{{ item.key }} = {{ item.value }}"
+      loop: "{{ pulseaudio_client_conf_entries }}"
+      register: t_pulseaudio_client_conf
+
+    - name: setup daemon.conf
+      lineinfile:
+        path: "{{ pulseaudio_daemon_conf }}"
+        regexp: '^{{ item.key }} ='
+        line: "{{ item.key }} = {{ item.value }}"
+      loop: "{{ pulseaudio_daemon_conf_entries }}"
+      register: t_pulseaudio_daemon_conf
+
+    - name: disable alternate pulseaudio service
+      block:
+        - name: disable alternate systemd pulseaudio service
+          service:
+            name: "{{ pulseaudio_service_to_disable|d('non-existent') }}"
+            enabled: no
+            state: stopped
+          when:
+            - ansible_service_mgr == "systemd"
+      when:
+        - (pulseaudio_service_to_disable|d('')) != ''
+
+    - name: setup systemd pulseaudio service
+      block:
+        - name: deploy pulseaudio service
+          template:
+            src: "pulseaudio/systemd/{{ pulseaudio_service_to_deploy }}"
+            dest: "{{ systemd_service_lib}}/{{ pulseaudio_service_to_deploy }}"
+            owner: root
+            group: root
+            mode: "0644"
+          register: t_pulseaudio_service
+          when: (pulseaudio_service_to_deploy|d('')) != ''
+
+        - name: start service
+          service:
+            name: "{{ pulseaudio_service_to_enable }}"
+            enabled: yes
+            state: started
+          when: (pulseaudio_service_to_enable|d('')) != ''
+
+        - name: restart service
+          service:
+            name: "{{ pulseaudio_service_to_enable }}"
+            enabled: yes
+            state: restarted
+          when:
+            - (pulseaudio_service_to_enable|d('')) != ''
+            - t_pulseaudio_client_conf.changed or t_pulseaudio_daemon_conf.changed or t_pulseaudio_service.changed
+
+      when:
+        - ansible_service_mgr == "systemd"
+        - not (has_daemontools|d(false))
+
+    - name: setup daemontools pulseaudio service
+      block:
+        - name: create daemontools workspaces
+          file:
+            path: "{{ pulseaudio_daemontools_dir }}/{{ item.path }}"
+            owner: "{{ item.owner }}"
+            group: "{{ item.group }}"
+            mode: "{{ item.mode }}"
+            state: directory
+          loop: "{{ daemontools_directories_template }}"
+
+        - name: deploy daemontools run scripts
+          template:
+            src: "svscan/{{ item.path }}"
+            dest: "{{ pulseaudio_daemontools_dir }}/{{ item.path }}"
+            owner: "{{ item.owner }}"
+            group: "{{ item.group }}"
+            mode: "{{ item.mode }}"
+          loop: "{{ daemontools_scripts_template }}"
+
+        - name: supervise (link) daemontools services
+          file:
+            src: "{{ pulseaudio_daemontools_dir }}"
+            dest: "{{ daemontools_svscan_dir }}/pulseaudio"
+            state: link
+
+      when:
+        - has_daemontools|d(false)
+        - (pulseaudio_service_to_enable|d('')) != ''
+
+  when: pulseaudio_mode in ['server', 'user']

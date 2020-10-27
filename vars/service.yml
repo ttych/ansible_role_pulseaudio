@@ -1,0 +1,3 @@
+---
+
+pulseaudio_dir: "{{ service_dir }}/pulseaudio"

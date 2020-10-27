@@ -1,0 +1,13 @@
+#!/bin/sh
+
+exec 2>&1
+
+set -e
+
+cd /
+
+exec pulseaudio \
+     --system \
+     --disallow-exit \
+     --disallow-module-loading \
+     2>&1
