@@ -15,14 +15,12 @@
   when: pulseaudio_mode is not defined
 
 
-- name: configure pulseaudio
+- name: prepare pulseaudio configuration
   block:
     - name: prepare server settings
       set_fact:
         pulseaudio_client_conf_entries: "{{ pulseaudio_server_client_conf_entries }}"
         pulseaudio_daemon_conf_entries: "{{ pulseaudio_server_daemon_conf_entries }}"
-        pulseaudio_service_to_enable: "{{ pulseaudio_server_service }}"
-        pulseaudio_service_to_disable: "{{ pulseaudio_user_service }}"
         pulseaudio_service_to_deploy: "{{ pulseaudio_server_service }}"
       when: pulseaudio_mode == "server"
 
@@ -30,11 +28,35 @@
       set_fact:
         pulseaudio_client_conf_entries: "{{ pulseaudio_user_client_conf_entries }}"
         pulseaudio_daemon_conf_entries: "{{ pulseaudio_user_daemon_conf_entries }}"
-        pulseaudio_service_to_enable: "{{ pulseaudio_user_service }}"
-        pulseaudio_service_to_disable: "{{ pulseaudio_server_service }}"
         pulseaudio_service_to_deploy:
+        pulseaudio_default_service_to_enable:
+        pulseaudio_default_services_to_disable:
+          - "{{ pulseaudio_server_service|d(omit) }}"
+          - "{{ pulseaudio_user_service|d(omit) }}"
       when: pulseaudio_mode == "user"
 
+    - name: prepare server services for system
+      set_fact:
+        pulseaudio_service_to_enable: "{{ pulseaudio_server_service|d(omit) }}"
+        pulseaudio_services_to_disable:
+          - "{{ pulseaudio_user_service|d(omit) }}"
+      when:
+        - pulseaudio_mode == "server"
+        - not has_daemontools
+
+    - name: prepare server services for daemontools
+      set_fact:
+        pulseaudio_service_to_enable:
+        pulseaudio_services_to_disable:
+          - "{{ pulseaudio_server_service|d(omit) }}"
+          - "{{ pulseaudio_user_service|d(omit) }}"
+      when:
+        - pulseaudio_mode == "server"
+        - has_daemontools
+
+
+- name: configure default pulseaudio
+  block:
     - name: setup client.conf
       lineinfile:
         path: "{{ pulseaudio_client_conf }}"
@@ -51,17 +73,14 @@
       loop: "{{ pulseaudio_daemon_conf_entries }}"
       register: t_pulseaudio_daemon_conf
 
-    - name: disable alternate pulseaudio service
-      block:
-        - name: disable alternate systemd pulseaudio service
-          service:
-            name: "{{ pulseaudio_service_to_disable|d('non-existent') }}"
-            enabled: no
-            state: stopped
-          when:
-            - ansible_service_mgr == "systemd"
+    - name: disable alternate systemd pulseaudio service
+      service:
+        name: "{{ item }}"
+        enabled: no
+        state: stopped
+      loop: "{{ pulseaudio_services_to_disable|d([]) }}"
       when:
-        - (pulseaudio_service_to_disable|d('')) != ''
+        - ansible_service_mgr == "systemd"
 
     - name: setup systemd pulseaudio service
       block:

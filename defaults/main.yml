@@ -3,9 +3,9 @@
 pulseaudio_conf_dir: /etc/pulse
 pulseaudio_client_conf: "{{ pulseaudio_conf_dir }}/client.conf"
 pulseaudio_daemon_conf: "{{ pulseaudio_conf_dir }}/daemon.conf"
+
 pulseaudio_packages:
   - pulseaudio
-  - pulseaudio-utils
 
 pulseaudio_server_service: pulseaudio
 pulseaudio_server_client_conf_entries:
