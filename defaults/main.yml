@@ -1,5 +1,7 @@
 ---
 
+want_pulseaudio: no
+
 pulseaudio_conf_dir: /etc/pulse
 pulseaudio_client_conf: "{{ pulseaudio_conf_dir }}/client.conf"
 pulseaudio_daemon_conf: "{{ pulseaudio_conf_dir }}/daemon.conf"
